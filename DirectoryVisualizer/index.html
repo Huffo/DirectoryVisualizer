@@ -5,8 +5,14 @@
     <title>DirectoryVisualizer</title>
     <link href="css/default.css" rel="stylesheet"/>
 </head>
-<body>
-    <div id="visualizer"></div>
+<body bgcolor="#ade4ff">
+    <div id="visualizerDiv"></div>
+    <div id="visualizationPickerDiv">
+        <form id="visualizationPickerForm" action="">
+            <input type="radio" name="visualizationType" value="Cluster"> Cluster<br>
+            <input type="radio" name="visualizationType" value="Tree"> Tree<br>
+        </form>
+    </div>
     <script src="https://d3js.org/d3.v5.min.js"></script>
     <script src="js/main.js"></script>
 </body>

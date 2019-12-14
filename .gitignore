@@ -261,3 +261,4 @@ __pycache__/
 *.pyc
 /DirectoryVisualizer.sln
 /DirectoryVisualizer/DirectoryVisualizer.jsproj
+/DirectoryVisualizer/notes.js
