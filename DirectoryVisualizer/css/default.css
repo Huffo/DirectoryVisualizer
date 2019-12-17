@@ -1,5 +1,34 @@
 ﻿body {
-  /* Uncomment this to enable scrolling and zooming
-  touch-action: manipulation;
-  */
+    background-color : #ade4ff;
+}
+
+#visualizerDiv {
+}
+
+.visualizer {
+    margin: 20px;
+    width: 850px;
+    height: 460px;
+}
+
+.node {
+}
+
+.path {
+    fill: none;
+    stroke: #aaa;
+}
+
+.text {
+    transform: rotate(-15deg);
+    transform-origin: 0% -10%;
+    fill: black;
+    font-family: 'helvetica';
+    font-size: 16px;
+}
+
+.circle {
+    fill: #ff9a2e;
+    stroke: #545454;
+    stroke-width: 5px;
 }

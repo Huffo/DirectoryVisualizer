@@ -8,7 +8,15 @@ const filepaths = JSON.stringify([
     'marvel/black_widow/why-the-widow-is-awesome.txt',
     'dc/aquaman/movie-review-collection.txt',
     'marvel/marvel_logo.png',
-    'dc/character_list.txt'
+    'dc/character_list.txt',
+    //'test/test/test/test/test/test/test/test.txt',
+    //'test/test/test/test/test/test/test.txt',
+    //'test/test/test/test/test/test.txt',
+    //'test/test/test/test/test.txt',
+    //'test/test/test/test.txt',
+    //'test/test/test.txt',
+    //'test/test.txt',
+    //'test/test.txt',
 ]);
 
 /*
@@ -34,58 +42,53 @@ const filepaths = JSON.stringify([
  *
  */
 
+const animationDuration = 500;
+
 function main() {
-    const visualizerWidth = 800;
-    const visualizerHeight = 460;
     const svgMarginRight = 250;
     const svgMarginLeft = 40;
 
     // Create and append svg to document
     let visualizer = d3.select('#visualizerDiv')
         .append('svg:svg')
-        .attr('width', visualizerWidth)
-        .attr('height', visualizerHeight)
+        .classed('visualizer', true)
         .append('svg:g')
-        .attr('transform', 'translate(' + svgMarginLeft + ',0)');
+        .attr('transform', 'translate(' + svgMarginLeft + ', 0)');
 
     // Create hierarchy
     let root = d3.hierarchy(parseJSONFilepathsAsTree(), (d) => {
         return d.descendants;
     });
 
+    // Get svg rect right and top
+    let visStyle = getComputedStyle(document.querySelector('.visualizer'));
+    let visRight = visStyle.width.replace('px', '') - svgMarginRight;
+    let visTop = visStyle.height.replace('px', '');
+
     // Check visualization mode
     let form = document.querySelector('#visualizationPickerForm');
     form.addEventListener('change', e => {
         switch (e.target.value) {
             case 'Cluster':
-                displayCluster(root, [visualizerHeight, visualizerWidth - svgMarginRight]);
-                update(visualizer);
+                displayCluster(root, [visTop, visRight]);
+                updateLayout(visualizer);
                 break;
             case 'Tree':
-                displayTree(root, [visualizerHeight, visualizerWidth - svgMarginRight]);
-                update(visualizer);
+                displayTree(root, [visTop, visRight]);
+                updateLayout(visualizer);
                 break;
             default:
-                displayCluster(root, [visualizerHeight, visualizerWidth - svgMarginRight]);
-                update(visualizer);
+                displayCluster(root, [visTop, visRight]);
+                updateLayout(visualizer);
                 break;
         }
     });
 
     // Default visualization mode
-    displayCluster(root, [visualizerHeight, visualizerWidth - svgMarginRight]);
+    displayCluster(root, [visTop, visRight]);
 
-    // Add the links/paths between nodes
-    addPaths(visualizer, root);
+    createNodes('#visualizerDiv', root);
 
-    // Add nodes to svg
-    addNodes(visualizer, root);
-
-    // Add circle for each node
-    addCircle(visualizer, root);
-
-    // Add text with name for each node
-    addText(visualizer, root);
 } main();
 
 /*** Returns an object containing objects, matching the directory tree ***/
@@ -178,126 +181,130 @@ function displayTree(root, size) {
     tree(root);
 }
 
-function addPaths(svg, hierarchy) {
-    const pathInflectionFirst = 50;
-    const pathInflectionSecond = 150;
-    const pathColor = '#aaa';
-    const pathStyle = 'none';
-
-    svg.selectAll('path')
-        .data(hierarchy.descendants().slice(1))
-        .enter()
-        .append('svg:g')
+function addPaths(svgId, parentClass) {
+    d3.select(svgId)
+        .selectAll(parentClass)
+        .append('path')
         .classed('path', true)
         .attr('d', (d) => {
-            // Set link/path curvature
-            return `M${d.y}, ${d.x}`
-                + `C${d.parent.y + pathInflectionFirst}, ${d.x}`
-                + ` ${d.parent.y + pathInflectionSecond}, ${d.parent.x}`
-                + ` ${d.parent.y}, ${d.parent.x}`;
-        })
-        .append('path')
-        .attr('d', (d) => {
-            // Set link/path curvature
-            return `M${d.y}, ${d.x}`
-                +  `C${d.parent.y + pathInflectionFirst}, ${d.x}`
-                +  ` ${d.parent.y + pathInflectionSecond}, ${d.parent.x}`
-                +  ` ${d.parent.y}, ${d.parent.x}`;
-        })
-        .style('fill', pathStyle)
-        .attr('stroke', pathColor);
+            if (d && d.parent) {
+                // Set curve inflection points to some nice percentages of the path distance
+                let pathInflectionFirst = 0.3 * (d.y - d.parent.y);
+                let pathInflectionSecond = 0.6 * (d.y - d.parent.y);
+                // Set link/path curvature
+                return `M0, 0`
+                    + `C${d.parent.y - d.y + pathInflectionFirst}, 0`
+                    + ` ${d.parent.y - d.y + pathInflectionSecond}, ${d.parent.x - d.x}`
+                    + ` ${d.parent.y - d.y + 9.5}, ${d.parent.x - d.x}`;    // + 9.5 because i havent figured out how to set the endpoint of the path to render before the parent circle, 9.5 represents radius + border
+            }
+        });
 }
 
-function addNodes(svg, hierarchy) {
-    svg.selectAll('node')
-        .data(hierarchy.descendants())
+function createNodes(svgId, root) {
+    console.log(d3.select(svgId));
+    // Add nodes to svg
+    d3.select(svgId)
+        .select('g')
+        .selectAll('.node')
+        .data(root.descendants())
         .enter()
         .append('svg:g')
+        .attr('id', 'nodeGroup')    // TODO set an actual identifier
         .classed('node', true)
-        .attr('transform', d => { return `translate(${d.y}, ${d.x})` })
-        .on('click', d => { toggleNode(d); updateNode(d); });
+        .on('click', d => { updateNode(d); })
+        .attr('transform', d => { return `translate(${d.y}, ${d.x})` });
+
+    // Add the links/paths between nodes
+    addPaths(svgId, '.node');
+
+    // Add circle for each node
+    addCircles(svgId, '.node');
+
+    // Add text with name for each node
+    addText(svgId, '.node');
 }
 
-function addText(svg, hierarchy) {
-    const textColor = 'black';
-    const textFont = 'helvetica';
-    const textFontSize = 16;
-
-    svg.selectAll('text')
-        .data(hierarchy.descendants())
-        .enter()
-        .append('svg:g')
-        .classed('text', true)
-        .attr('transform', d => { return `translate(${d.y}, ${d.x})` })             // D3, seems to handle translations as 'translateTo'
+function addText(svgId, parentClass) {
+    d3.select(svgId)
+        .selectAll(parentClass)
         .append('text')
-        .attr('transform', () => { return `rotate(10 10, 40) translate(-10 -10)` }) // CSS, seems to handle translations as 'translateBy', fairly uncertain but behaviour does seem different
-        .attr('fill', textColor)
-        .attr('font', textFont)
-        .attr('font-size', textFontSize)
+        .classed('text', true)
         .text(d => d.data.name);
 }
 
-function addCircle(svg, hierarchy) {
-    const defRadius = 7;
-    const defCircleFillColor = '#ff9a2e';       // TODO move to css
-    const defCircleBorderColor = '#545454';
-    const defBorderthickness = 5;
-    
-    svg.selectAll('circle')
-        .data(hierarchy.descendants())
-        .enter()
-        .append('svg:g')
-        .classed('circle', true)
-        .attr('transform', d => { return `translate(${d.y}, ${d.x})` })
+function addCircles(svgId, parentClass) {
+    const radius = 7;
+
+    d3.select(svgId)
+        .selectAll(parentClass)
         .append('circle')
-        .attr('r', defRadius)
-        .style('fill', defCircleFillColor)
-        .attr('stroke', defCircleBorderColor)
-        .style('stroke-width', defBorderthickness);
+        .classed('circle', true)
+        .attr('r', radius);
 }
 
-function nodeEnter(root, layout) {
-
-}
-
-function nodeExit() {
-
-}
-
-function update(svg) {
-    const animationDuration = 500;
-    const pathInflectionFirst = 50; // TODO Duplicated const, find fix or go global
-    const pathInflectionSecond = 150;
-
-    let nodes = svg.selectAll('g')
-
-    // Update the nodes…
-    nodes.transition()
+function updateLayout(svg) {
+    // Update the nodes
+    svg.selectAll('g')
+        .transition()
         .duration(animationDuration)
         .attr('transform', d => { return `translate(${d.y}, ${d.x})` });
 
     // Update the links
-    svg.selectAll('path')       // TODO figure out why these elements are nesting, fix that and i can skip duplicating this code
+    svg.selectAll('path')
         .transition()
         .duration(animationDuration)
         .attr('d', (d) => {
-            // Set link/path curvature
-            return `M${d.y}, ${d.x}`
-                + `C${d.parent.y + pathInflectionFirst}, ${d.x}`
-                + ` ${d.parent.y + pathInflectionSecond}, ${d.parent.x}`
-                + ` ${d.parent.y}, ${d.parent.x}`;
-        })
-    svg.selectAll('g.path')
-        .transition()
-        .duration(animationDuration)
-        .attr('d', (d) => {
-            // Set link/path curvature
-            return `M${d.y}, ${d.x}`
-                + `C${d.parent.y + pathInflectionFirst}, ${d.x}`
-                + ` ${d.parent.y + pathInflectionSecond}, ${d.parent.x}`
-                + ` ${d.parent.y}, ${d.parent.x}`;
-        })
+            if (d && d.parent) {
+                // Set curve inflection points to some nice percentages of the path distance
+                let pathInflectionFirst = 0.3 * (d.y - d.parent.y);
+                let pathInflectionSecond = 0.6 * (d.y - d.parent.y);
+                // Set link/path curvature
+                return `M0, 0`
+                    + `C${d.parent.y - d.y + pathInflectionFirst}, 0`
+                    + ` ${d.parent.y - d.y + pathInflectionSecond}, ${d.parent.x - d.x}`
+                    + ` ${d.parent.y - d.y + 9.5}, ${d.parent.x - d.x}`;
+            }
+        }
+    );
 }
 
-function toggle() {
+
+// **** BROKEN STUFF - WORK IN PROGRESS **** //
+function updateNode(node) {
+    //enterNodes('#visualizerDiv', node);
+    //exitNodes('#visualizerDiv', node);
+}
+
+function enterNodes(svgId, node) {
+    // Add nodes to svg
+    d3.select(svgId)
+        .selectAll('.node')
+        .data(node.descendants())
+        .enter()
+        .append('svg:g')
+        .attr('id', 'nodeGroup')    // TODO set an actual identifier
+        .classed('node', true)
+        .on('click', d => { toggleNode(d); updateNode(d); })
+        .attr('transform', d => { console.log(d); return `translate(${d.y}, ${d.x})` });
+    
+    // Add the links/paths between nodes
+    addPaths(svgId, '.node');
+    
+    // Add circle for each node
+    addCircles(svgId, '.node');
+    
+    // Add text with name for each node
+    addText(svgId, '.node');
+}
+
+function exitNodes(svgId, node) {
+    // Add nodes to svg
+    d3.select(svgId)
+        .selectAll('.node')
+        .data(node.descendants())
+        .exit()
+        .transition()
+        .duration(animationDuration)
+        .attr('transform', function (d) { console.log(d); return `translate(${d.parent.y}, ${d.parent.x})`; })
+        .remove();
 }
