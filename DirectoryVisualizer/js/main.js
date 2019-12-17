@@ -43,6 +43,10 @@ const filepaths = JSON.stringify([
  */
 
 const animationDuration = 500;
+const pathInflectionFirstPercentage = 0.3;
+const pathInflectionSecondPercentage = 0.6;
+
+let nodeGroupIdx = 0;
 
 function main() {
     const svgMarginRight = 250;
@@ -84,7 +88,8 @@ function main() {
         }
     });
 
-    // Default visualization mode
+    // Set standard radio and visualization mode
+    form.querySelector('#cluster').checked = true;
     displayCluster(root, [visTop, visRight]);
 
     createNodes('#visualizerDiv', root);
@@ -128,59 +133,21 @@ function parseJSONFilepathsAsTree() {
     return directoryTree;
 }
 
-/*** Returns a list of objects like { name : 'marvel', parent : 'root', children : ['black_widow', 'drdoom', 'marvel_logo.png' ] } ***/
-function parseJSONFilepathsAsList() {
-    // A list of lists with split filepaths, where the first item will become parent to the second, the second to the third and so on
-    let directoryItems = [];
-
-    // The list of objects to be returned
-    let directoryList = [];
-
-    let filepathList = JSON.parse(filepaths);
-
-    function makeObject(parent, child) {
-        // break recursion if invalid list
-        if (!Array.isArray(child) || !child.length) {
-            return;
-        }
-
-        // Add items not in list
-        if (!directoryList.find(listItem => listItem.name === child[0])) {
-            directoryList.push({ name: child[0], parent: parent, children: [] });
-        }
-
-        // Add this child as a child to its parent if not already present
-        let parentObj = directoryList.find(listItem => listItem.name === parent);
-        if (parentObj && !parentObj.children.find(objChild => objChild.name === child[0])) {
-            parentObj.children.push(child[0]);
-        } // else assume parent is root and is untracked
-        makeObject(child[0], child.slice(1));
-    }
-
-    // split each filepath into usable arrays
-    // i.e. 'marvel/black_widow/bw.png' will become [ 'marvel', 'black_widow', 'bw.png' ]
-    filepathList.forEach(item => directoryItems.push(item.split('/')));
-
-    // Iterate over the item list and add each item to the list
-    directoryItems.forEach(item => {
-        makeObject('root', item);
-    });
-
-    return directoryList;
-}
-
+/*** Sets the current D3 layout to Cluster ***/
 function displayCluster(root, size) {
     let cluster = d3.cluster()
         .size(size);
     cluster(root);
 }
 
+/*** Sets the current D3 layout to Tree ***/
 function displayTree(root, size) {
     let tree = d3.tree()
         .size(size);
     tree(root);
 }
 
+/*** Adds paths from node to parent ***/
 function addPaths(svgId, parentClass) {
     d3.select(svgId)
         .selectAll(parentClass)
@@ -189,27 +156,31 @@ function addPaths(svgId, parentClass) {
         .attr('d', (d) => {
             if (d && d.parent) {
                 // Set curve inflection points to some nice percentages of the path distance
-                let pathInflectionFirst = 0.3 * (d.y - d.parent.y);
-                let pathInflectionSecond = 0.6 * (d.y - d.parent.y);
-                // Set link/path curvature
-                return `M0, 0`
-                    + `C${d.parent.y - d.y + pathInflectionFirst}, 0`
+                let pathInflectionFirst = pathInflectionFirstPercentage * (d.y - d.parent.y);
+                let pathInflectionSecond = pathInflectionSecondPercentage * (d.y - d.parent.y);
+                // Set link/path curvature, use y, x ordering to flip it on its side
+                return `M0, 0`                                                              // Move from local 0
+                    + `C${d.parent.y - d.y + pathInflectionFirst}, 0`                       // Curve towards parent
                     + ` ${d.parent.y - d.y + pathInflectionSecond}, ${d.parent.x - d.x}`
-                    + ` ${d.parent.y - d.y + 9.5}, ${d.parent.x - d.x}`;    // + 9.5 because i havent figured out how to set the endpoint of the path to render before the parent circle, 9.5 represents radius + border
+                    + ` ${d.parent.y - d.y + 9.5}, ${d.parent.x - d.x}`;                    // + 9.5 because i havent figured out how to set the endpoint of the path to render before the parent circle, 9.5 represents radius + border
             }
         });
 }
 
-function createNodes(svgId, root) {
-    console.log(d3.select(svgId));
+/*** Creates nodes according to the input d3.hierarchy ***/
+function createNodes(svgId, hierarchy) {
     // Add nodes to svg
     d3.select(svgId)
         .select('g')
         .selectAll('.node')
-        .data(root.descendants())
+        .data(hierarchy.descendants())
         .enter()
         .append('svg:g')
-        .attr('id', 'nodeGroup')    // TODO set an actual identifier
+        .attr('id', d => {
+            let name = `nodeGroup_${nodeGroupIdx}_${d.data.name || 'root'}`;
+            ++nodeGroupIdx;
+            return name;
+        })
         .classed('node', true)
         .on('click', d => { updateNode(d); })
         .attr('transform', d => { return `translate(${d.y}, ${d.x})` });
@@ -224,6 +195,7 @@ function createNodes(svgId, root) {
     addText(svgId, '.node');
 }
 
+/*** Appends the name of the node as text ***/
 function addText(svgId, parentClass) {
     d3.select(svgId)
         .selectAll(parentClass)
@@ -232,6 +204,7 @@ function addText(svgId, parentClass) {
         .text(d => d.data.name);
 }
 
+/*** Appends a circle icon ***/
 function addCircles(svgId, parentClass) {
     const radius = 7;
 
@@ -242,6 +215,7 @@ function addCircles(svgId, parentClass) {
         .attr('r', radius);
 }
 
+/*** Updates any node and path transitions after a layout change ***/
 function updateLayout(svg) {
     // Update the nodes
     svg.selectAll('g')
@@ -256,8 +230,8 @@ function updateLayout(svg) {
         .attr('d', (d) => {
             if (d && d.parent) {
                 // Set curve inflection points to some nice percentages of the path distance
-                let pathInflectionFirst = 0.3 * (d.y - d.parent.y);
-                let pathInflectionSecond = 0.6 * (d.y - d.parent.y);
+                let pathInflectionFirst = pathInflectionFirstPercentage * (d.y - d.parent.y);
+                let pathInflectionSecond = pathInflectionSecondPercentage * (d.y - d.parent.y);
                 // Set link/path curvature
                 return `M0, 0`
                     + `C${d.parent.y - d.y + pathInflectionFirst}, 0`
@@ -268,43 +242,5 @@ function updateLayout(svg) {
     );
 }
 
-
-// **** BROKEN STUFF - WORK IN PROGRESS **** //
 function updateNode(node) {
-    //enterNodes('#visualizerDiv', node);
-    //exitNodes('#visualizerDiv', node);
-}
-
-function enterNodes(svgId, node) {
-    // Add nodes to svg
-    d3.select(svgId)
-        .selectAll('.node')
-        .data(node.descendants())
-        .enter()
-        .append('svg:g')
-        .attr('id', 'nodeGroup')    // TODO set an actual identifier
-        .classed('node', true)
-        .on('click', d => { toggleNode(d); updateNode(d); })
-        .attr('transform', d => { console.log(d); return `translate(${d.y}, ${d.x})` });
-    
-    // Add the links/paths between nodes
-    addPaths(svgId, '.node');
-    
-    // Add circle for each node
-    addCircles(svgId, '.node');
-    
-    // Add text with name for each node
-    addText(svgId, '.node');
-}
-
-function exitNodes(svgId, node) {
-    // Add nodes to svg
-    d3.select(svgId)
-        .selectAll('.node')
-        .data(node.descendants())
-        .exit()
-        .transition()
-        .duration(animationDuration)
-        .attr('transform', function (d) { console.log(d); return `translate(${d.parent.y}, ${d.parent.x})`; })
-        .remove();
 }
