@@ -45,6 +45,7 @@ const filepaths = JSON.stringify([
 const animationDuration = 500;
 const pathInflectionFirstPercentage = 0.3;
 const pathInflectionSecondPercentage = 0.6;
+const circleBorderRadius = 9.5; //represents radius + border of circle. used because i havent figured out how to set the endpoint of paths to render before the parent circle
 
 let nodeGroupIdx = 0;
 
@@ -71,7 +72,7 @@ function main() {
 
     // Check visualization mode
     let form = document.querySelector('#visualizationPickerForm');
-    form.addEventListener('change', e => {
+    form.addEventListener('change', (e) => {
         switch (e.target.value) {
             case 'Cluster':
                 displayCluster(root, [visTop, visRight]);
@@ -126,7 +127,7 @@ function parseJSONFilepathsAsTree() {
     filepathList.forEach(item => directoryItems.push(item.split('/')));
 
     // Iterate over the item list and add each item to the tree
-    directoryItems.forEach(item => {
+    directoryItems.forEach((item) => {
         addDescendants(directoryTree, item);
     });
     
@@ -162,7 +163,7 @@ function addPaths(svgId, parentClass) {
                 return `M0, 0`                                                              // Move from local 0
                     + `C${d.parent.y - d.y + pathInflectionFirst}, 0`                       // Curve towards parent
                     + ` ${d.parent.y - d.y + pathInflectionSecond}, ${d.parent.x - d.x}`
-                    + ` ${d.parent.y - d.y + 9.5}, ${d.parent.x - d.x}`;                    // + 9.5 because i havent figured out how to set the endpoint of the path to render before the parent circle, 9.5 represents radius + border
+                    + ` ${d.parent.y - d.y + circleBorderRadius}, ${d.parent.x - d.x}`;
             }
         });
 }
@@ -176,14 +177,14 @@ function createNodes(svgId, hierarchy) {
         .data(hierarchy.descendants())
         .enter()
         .append('svg:g')
-        .attr('id', d => {
+        .attr('id', (d) => {
             let name = `nodeGroup_${nodeGroupIdx}_${d.data.name || 'root'}`;
             ++nodeGroupIdx;
             return name;
         })
         .classed('node', true)
-        .on('click', d => { updateNode(d); })
-        .attr('transform', d => { return `translate(${d.y}, ${d.x})` });
+        .on('click', d => updateNode(d))
+        .attr('transform', (d) => { return `translate(${d.y}, ${d.x})` });
 
     // Add the links/paths between nodes
     addPaths(svgId, '.node');
@@ -221,10 +222,10 @@ function updateLayout(svg) {
     svg.selectAll('g')
         .transition()
         .duration(animationDuration)
-        .attr('transform', d => { return `translate(${d.y}, ${d.x})` });
+        .attr('transform', (d) => { return `translate(${d.y}, ${d.x})` });
 
     // Update the links
-    svg.selectAll('path')
+    svg.selectAll('.path')
         .transition()
         .duration(animationDuration)
         .attr('d', (d) => {
@@ -236,11 +237,49 @@ function updateLayout(svg) {
                 return `M0, 0`
                     + `C${d.parent.y - d.y + pathInflectionFirst}, 0`
                     + ` ${d.parent.y - d.y + pathInflectionSecond}, ${d.parent.x - d.x}`
-                    + ` ${d.parent.y - d.y + 9.5}, ${d.parent.x - d.x}`;
+                    + ` ${d.parent.y - d.y + circleBorderRadius}, ${d.parent.x - d.x}`;
             }
         }
     );
 }
 
 function updateNode(node) {
+    enterNodes(node);
+    exitNodes(node);
+}
+
+function exitNodes(node) {
+    let nodes = d3.selectAll('.node')
+        .data(node)
+        .exit()
+        .filter(d => {
+            if (node.descendants().slice(1).includes(d)) { // For some reason i get all existing elements and i just cant figure out why, so filter the ones i want
+                return d;
+            }
+        });
+
+    // Remove nodes
+    nodes.transition()
+        .duration(animationDuration)
+        .attr('transform', (d) => { return `translate(${node.y}, ${node.x})`; })
+        .remove();
+
+    nodes.selectAll('.path')
+        .transition()
+        .duration(animationDuration)
+        .attr('d', (d) => {
+            if (d && d.parent) {
+                // Set link/path curvature
+                return `M0, 0`
+                    + ` C0, 0`
+                    + ` 0, 0`
+                    + ` ${circleBorderRadius}, 0`;
+            }
+        }
+    );
+}
+
+// **** BROKEN STUFF - WORK IN PROGRESS **** //
+
+function enterNodes(node) {
 }
