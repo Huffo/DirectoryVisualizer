@@ -58,10 +58,12 @@ function main() {
         .append('svg:svg')
         .classed('visualizer', true)
         .append('svg:g')
+        .classed('svgNodeHierarchy', true)
         .attr('transform', 'translate(' + svgMarginLeft + ', 0)');
 
     // Create hierarchy
-    let root = d3.hierarchy(parseJSONFilepathsAsTree(), (d) => {
+    let defaultFileTree = parseJSONFilepathsAsTree(filepaths);
+    let hierarchy = d3.hierarchy(defaultFileTree, (d) => {
         return d.descendants;
     });
 
@@ -75,37 +77,49 @@ function main() {
     form.addEventListener('change', (e) => {
         switch (e.target.value) {
             case 'Cluster':
-                displayCluster(root, [visTop, visRight]);
-                updateLayout(visualizer);
+                displayCluster(hierarchy, [visTop, visRight]);
+                updateLayout();
                 break;
             case 'Tree':
-                displayTree(root, [visTop, visRight]);
-                updateLayout(visualizer);
+                displayTree(hierarchy, [visTop, visRight]);
+                updateLayout();
                 break;
             default:
-                displayCluster(root, [visTop, visRight]);
-                updateLayout(visualizer);
+                displayCluster(hierarchy, [visTop, visRight]);
+                updateLayout();
                 break;
         }
     });
 
     // Set standard radio and visualization mode
     form.querySelector('#cluster').checked = true;
-    displayCluster(root, [visTop, visRight]);
+    displayCluster(hierarchy, [visTop, visRight]);
 
-    createNodes('#visualizerDiv', root);
+    let addNodeDiv = document.querySelector('#addNodeDiv');
+    let input = addNodeDiv.querySelector('#addNodeInput');
+    input.placeholder = 'enter new node name here';
+    let inputButton = addNodeDiv.querySelector('#addNodeSubmit');
+    inputButton.addEventListener('click', () => { addSingleNode(input.value); })
+
+    createNodes(visualizer, hierarchy.descendants());
 
 } main();
 
 /*** Returns an object containing objects, matching the directory tree ***/
-function parseJSONFilepathsAsTree() {
+function parseJSONFilepathsAsTree(JsonFile) {
+
+    if (!JsonFile) {
+        console.log('Invalid JSON-file');
+        return;
+    }
+
     // A list of lists with split filepaths, where the first item will become parent to the second, the second to the third and so on
     let directoryItems = [];
 
     // The tree to be returned
     let directoryTree = { descendants: [] };
 
-    let filepathList = JSON.parse(filepaths);
+    let filepathList = JSON.parse(JsonFile);
 
     /*** From a list recursively creates descendant objects to an ancestor object ***/
     function addDescendants(ancestor, descendantList) {
@@ -135,24 +149,22 @@ function parseJSONFilepathsAsTree() {
 }
 
 /*** Sets the current D3 layout to Cluster ***/
-function displayCluster(root, size) {
+function displayCluster(hierarchy, size) {
     let cluster = d3.cluster()
         .size(size);
-    cluster(root);
+    cluster(hierarchy);
 }
 
 /*** Sets the current D3 layout to Tree ***/
-function displayTree(root, size) {
+function displayTree(hierarchy, size) {
     let tree = d3.tree()
         .size(size);
-    tree(root);
+    tree(hierarchy);
 }
 
 /*** Adds paths from node to parent ***/
-function addPaths(svgId, parentClass) {
-    d3.select(svgId)
-        .selectAll(parentClass)
-        .append('path')
+function addPaths(nodes) {
+   nodes.append('path')
         .classed('path', true)
         .attr('d', (d) => {
             if (d && d.parent) {
@@ -169,12 +181,10 @@ function addPaths(svgId, parentClass) {
 }
 
 /*** Creates nodes according to the input d3.hierarchy ***/
-function createNodes(svgId, hierarchy) {
+function createNodes(svg, data) {
     // Add nodes to svg
-    d3.select(svgId)
-        .select('g')
-        .selectAll('.node')
-        .data(hierarchy.descendants())
+    let nodes = svg.selectAll('.node')
+        .data(data)
         .enter()
         .append('svg:g')
         .attr('id', (d) => {
@@ -187,45 +197,40 @@ function createNodes(svgId, hierarchy) {
         .attr('transform', (d) => { return `translate(${d.y}, ${d.x})` });
 
     // Add the links/paths between nodes
-    addPaths(svgId, '.node');
+    addPaths(nodes);
 
     // Add circle for each node
-    addCircles(svgId, '.node');
+    addCircles(nodes);
 
     // Add text with name for each node
-    addText(svgId, '.node');
+    addText(nodes);
 }
 
 /*** Appends the name of the node as text ***/
-function addText(svgId, parentClass) {
-    d3.select(svgId)
-        .selectAll(parentClass)
-        .append('text')
+function addText(nodes) {
+    nodes.append('text')
         .classed('text', true)
         .text(d => d.data.name);
 }
 
 /*** Appends a circle icon ***/
-function addCircles(svgId, parentClass) {
+function addCircles(nodes) {
     const radius = 7;
-
-    d3.select(svgId)
-        .selectAll(parentClass)
-        .append('circle')
+    nodes.append('circle')
         .classed('circle', true)
         .attr('r', radius);
 }
 
 /*** Updates any node and path transitions after a layout change ***/
-function updateLayout(svg) {
+function updateLayout() {
     // Update the nodes
-    svg.selectAll('g')
+    d3.selectAll('.node')
         .transition()
         .duration(animationDuration)
         .attr('transform', (d) => { return `translate(${d.y}, ${d.x})` });
 
     // Update the links
-    svg.selectAll('.path')
+    d3.selectAll('.path')
         .transition()
         .duration(animationDuration)
         .attr('d', (d) => {
@@ -302,5 +307,9 @@ function selectChildNodes(parent) {
             if (parent.descendants().slice(1).includes(d)) { // For some reason i get all existing elements and i just cant figure out why, so filter the ones i want
                 return d;
             }
-        });
+        }
+    );
+}
+
+function addSingleNode(newNodeName) {
 }
