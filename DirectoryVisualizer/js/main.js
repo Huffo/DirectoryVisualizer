@@ -183,7 +183,7 @@ function createNodes(svgId, hierarchy) {
             return name;
         })
         .classed('node', true)
-        .on('click', d => updateNode(d))
+        .on('click', d => toggleChildnodesVisibility(d))
         .attr('transform', (d) => { return `translate(${d.y}, ${d.x})` });
 
     // Add the links/paths between nodes
@@ -243,43 +243,64 @@ function updateLayout(svg) {
     );
 }
 
-function updateNode(node) {
-    enterNodes(node);
-    exitNodes(node);
+function toggleChildnodesVisibility(node) {
+    let nodes = selectChildNodes(node);
+    if (node.hideChildren) {
+        nodes.classed('hidden', false)
+            .transition()
+            .duration(animationDuration)
+            .attr('transform', (d) => { return `translate(${d.y}, ${d.x})` });
+
+        nodes.selectAll('.path')
+            .transition()
+            .duration(animationDuration)
+            .attr('d', (d) => {
+                if (d && d.parent) {
+                    // Set curve inflection points to some nice percentages of the path distance
+                    let pathInflectionFirst = pathInflectionFirstPercentage * (d.y - d.parent.y);
+                    let pathInflectionSecond = pathInflectionSecondPercentage * (d.y - d.parent.y);
+                    // Set link/path curvature
+                    return `M0, 0`
+                        + `C${d.parent.y - d.y + pathInflectionFirst}, 0`
+                        + ` ${d.parent.y - d.y + pathInflectionSecond}, ${d.parent.x - d.x}`
+                        + ` ${d.parent.y - d.y + circleBorderRadius}, ${d.parent.x - d.x}`;
+                }
+            }
+        );
+
+        node.hideChildren = false;
+    } else {
+        // Remove nodes
+        nodes.transition()
+            .duration(animationDuration)
+            .attr('transform', () => { return `translate(${node.y}, ${node.x})`; })
+            .on("end", () => nodes.classed('hidden', true));
+
+        nodes.selectAll('.path')
+            .transition()
+            .duration(animationDuration)
+            .attr('d', (d) => {
+                if (d && d.parent) {
+                    // Set link/path curvature
+                    return `M0, 0`
+                        + ` C0, 0`
+                        + ` 0, 0`
+                        + ` ${circleBorderRadius}, 0`;
+                }
+            }
+        );
+
+        node.hideChildren = true;
+    }
 }
 
-function exitNodes(node) {
-    let nodes = d3.selectAll('.node')
-        .data(node)
+function selectChildNodes(parent) {
+    return d3.selectAll('.node')
+        .data(parent)
         .exit()
         .filter(d => {
-            if (node.descendants().slice(1).includes(d)) { // For some reason i get all existing elements and i just cant figure out why, so filter the ones i want
+            if (parent.descendants().slice(1).includes(d)) { // For some reason i get all existing elements and i just cant figure out why, so filter the ones i want
                 return d;
             }
         });
-
-    // Remove nodes
-    nodes.transition()
-        .duration(animationDuration)
-        .attr('transform', (d) => { return `translate(${node.y}, ${node.x})`; })
-        .remove();
-
-    nodes.selectAll('.path')
-        .transition()
-        .duration(animationDuration)
-        .attr('d', (d) => {
-            if (d && d.parent) {
-                // Set link/path curvature
-                return `M0, 0`
-                    + ` C0, 0`
-                    + ` 0, 0`
-                    + ` ${circleBorderRadius}, 0`;
-            }
-        }
-    );
-}
-
-// **** BROKEN STUFF - WORK IN PROGRESS **** //
-
-function enterNodes(node) {
 }

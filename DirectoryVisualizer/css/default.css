@@ -32,3 +32,7 @@
     stroke: #545454;
     stroke-width: 5px;
 }
+
+.hidden {
+    display: none;
+}
